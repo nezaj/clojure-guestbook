@@ -33,14 +33,14 @@
                  [selmer "1.12.18"]]
 
   :min-lein-version "2.0.0"
-  
+
   :source-paths ["src/clj"]
   :test-paths ["test/clj"]
   :resource-paths ["resources"]
   :target-path "target/%s/"
   :main ^:skip-aot guestbook.core
 
-  :plugins []
+  :plugins [[lein-cljfmt "0.7.0"]]
 
   :profiles
   {:uberjar {:omit-source true
@@ -59,7 +59,7 @@
                                  [ring/ring-mock "0.4.0"]]
                   :plugins      [[com.jakemccrary/lein-test-refresh "0.24.1"]
                                  [jonase/eastwood "0.3.5"]]
-                  
+
                   :source-paths ["env/dev/clj"]
                   :resource-paths ["env/dev/resources"]
                   :repl-options {:init-ns user}
