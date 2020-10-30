@@ -2,14 +2,17 @@
   "Userspace functions you can run by default in your local REPL."
   (:require
    [guestbook.config :refer [env]]
-    [clojure.pprint]
-    [clojure.spec.alpha :as s]
-    [expound.alpha :as expound]
-    [mount.core :as mount]
-    [guestbook.core :refer [start-app]]
-    [guestbook.db.core]
-    [conman.core :as conman]
-    [luminus-migrations.core :as migrations]))
+   [clojure.pprint]
+   [clojure.spec.alpha :as s]
+   [expound.alpha :as expound]
+   [mount.core :as mount]
+   [guestbook.core :refer [start-app]]
+   [guestbook.db.core]
+   [conman.core :as conman]
+   [luminus-migrations.core :as migrations]
+   [weasel.repl.server]
+   [weasel.repl.websocket]
+   [cljs.repl]))
 
 (alter-var-root #'s/*explain-out* (constantly expound/printer))
 
@@ -60,4 +63,6 @@
   [name]
   (migrations/create name (select-keys env [:database-url])))
 
-
+(defn repl-env  []
+  (cljs.repl/repl
+   (weasel.repl.websocket/repl-env :ip  "0.0.0.0" :port 9001)))

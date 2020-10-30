@@ -1,22 +1,22 @@
 (ns guestbook.db.core
   (:require
-    [clojure.java.jdbc :as jdbc]
-    [conman.core :as conman]
-    [java-time.pre-java8 :as jt]
-    [mount.core :refer [defstate]]
-    [guestbook.config :refer [env]]))
+   [clojure.java.jdbc :as jdbc]
+   [conman.core :as conman]
+   [java-time.pre-java8 :as jt]
+   [java-time :refer [java-date]]
+   [mount.core :refer [defstate]]
+   [guestbook.config :refer [env]]))
 
 (defstate ^:dynamic *db*
-          :start (conman/connect! {:jdbc-url (env :database-url)})
-          :stop (conman/disconnect! *db*))
+  :start (conman/connect! {:jdbc-url (env :database-url)})
+  :stop (conman/disconnect! *db*))
 
 (conman/bind-connection *db* "sql/queries.sql")
-
 
 (extend-protocol jdbc/IResultSetReadColumn
   java.sql.Timestamp
   (result-set-read-column [v _2 _3]
-    (.toLocalDateTime v))
+    (java-date (.atZone (.toLocalDateTime v) (java.time.ZoneId/systemDefault))))
   java.sql.Date
   (result-set-read-column [v _2 _3]
     (.toLocalDate v))
@@ -40,4 +40,3 @@
   java.time.ZonedDateTime
   (sql-value [v]
     (jt/sql-timestamp v)))
-

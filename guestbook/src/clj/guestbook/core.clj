@@ -7,7 +7,9 @@
     [guestbook.config :refer [env]]
     [clojure.tools.cli :refer [parse-opts]]
     [clojure.tools.logging :as log]
-    [mount.core :as mount])
+    [mount.core :as mount]
+    [cljs.repl]
+    [weasel.repl.websocket])
   (:gen-class))
 
 ;; log uncaught exceptions in threads
@@ -72,4 +74,8 @@
       (System/exit 0))
     :else
     (start-app args)))
-  
+
+(defn repl-env  []
+  (cljs.repl/repl
+   (weasel.repl.websocket/repl-env :ip  "0.0.0.0" :port 9001)))
+
