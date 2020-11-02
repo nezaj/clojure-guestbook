@@ -6,6 +6,7 @@
   :dependencies [[ch.qos.logback/logback-classic "1.2.3"]
                  [cljs-ajax "0.8.0"]
                  [reagent "0.10.0"]
+                 [re-frame "1.0.0"]
                  [cheshire "5.9.0"]
                  [clojure.java-time "0.3.2"]
                  [com.h2database/h2 "1.4.200"]
