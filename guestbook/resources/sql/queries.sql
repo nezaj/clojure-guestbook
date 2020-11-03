@@ -6,4 +6,4 @@ VALUES (:name, :message)
 
 -- :name get-messages :? :*
 -- :doc selects all available messages
-SELECT * FROM guestbook
+SELECT id, name, message, timestamp FROM guestbook
