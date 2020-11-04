@@ -1,18 +1,17 @@
 (ns user
   "Userspace functions you can run by default in your local REPL."
   (:require
-   [guestbook.config :refer [env]]
    [clojure.pprint]
    [clojure.spec.alpha :as s]
-   [expound.alpha :as expound]
-   [mount.core :as mount]
-   [guestbook.core :refer [start-app]]
-   [guestbook.db.core]
+
    [conman.core :as conman]
+   [expound.alpha :as expound]
    [luminus-migrations.core :as migrations]
-   [weasel.repl.server]
-   [weasel.repl.websocket]
-   [cljs.repl]))
+   [mount.core :as mount]
+
+   [guestbook.config :refer [env]]
+   [guestbook.core :refer [start-app]]
+   [guestbook.db.core]))
 
 (alter-var-root #'s/*explain-out* (constantly expound/printer))
 
@@ -62,7 +61,3 @@
   "Create a new up and down migration file with a generated timestamp and `name`."
   [name]
   (migrations/create name (select-keys env [:database-url])))
-
-(defn repl-env  []
-  (cljs.repl/repl
-   (weasel.repl.websocket/repl-env :ip  "0.0.0.0" :port 9001)))

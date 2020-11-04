@@ -1,0 +1,12 @@
+{
+    "devDependencies": {
+        "shadow-cljs": "^2.8.37"
+    },
+    "dependencies": {
+        "xregexp": "4.2.4",
+        "core-js": "^2.6.9",
+        "create-react-class": "^15.6.3",
+        "react": "^16.4.0",
+        "react-dom": "^16.4.0"
+    }
+}

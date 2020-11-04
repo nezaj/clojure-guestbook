@@ -1,9 +1,13 @@
 MAKEFLAGS = --no-print-directory --always-make --silent
 MAKE = make $(MAKEFLAGS)
 
-repl:
-	@echo "Starting repl..."
+clj-repl:
+	@echo "Starting clj repl..."
 	lein repl
+
+cljs-repl:
+	@echo "Starting cljs repl..."
+	npx shadow-cljs cljs-repl app
 
 clean:
 	@echo "Removing compiled files..."
@@ -15,7 +19,7 @@ dev-server:
 
 dev-client:
 	@echo "Starting client server..."
-	lein cljsbuild auto
+	npx shadow-cljs watch app
 
 watch-test:
 	@echo "Watching tests..."

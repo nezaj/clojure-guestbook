@@ -9,6 +9,7 @@ test-config.edn
 *.jar
 *.class
 /.lein-*
+/.shadow-cljs
 profiles.clj
 /.env
 .nrepl-port
