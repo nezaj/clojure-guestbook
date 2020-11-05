@@ -35,6 +35,7 @@
                  [ring/ring-core "1.8.0"]
                  [ring/ring-defaults "0.3.2"]
                  [selmer "1.12.18"]
+                 [thheller/shadow-cljs "2.11.6"]
                  [cider/piggieback "0.5.1"]]
 
   :min-lein-version "2.0.0"
@@ -51,7 +52,8 @@
   {:uberjar {:omit-source true
              :aot :all
              :uberjar-name "guestbook.jar"
-             :source-paths ["env/prod/clj"]
+             :source-paths ["env/prod/clj" "env/prod/cljc" "env/prod/cljs"]
+             :prep-tasks ["compile" ["run" "-m" "shadow.cljs.devtools.cli" "release" "app"]]
              :resource-paths ["env/prod/resources"]}
 
    :dev           [:project/dev :profiles/dev]
@@ -62,8 +64,8 @@
                                  [prone "2019-07-08"]
                                  [ring/ring-devel "1.8.0"]
                                  [ring/ring-mock "0.4.0"]
-                                 [thheller/shadow-cljs "2.11.6"]
-                                 [binaryage/devtools "0.9.10"]]
+                                 [day8.re-frame/re-frame-10x "0.7.0"]
+                                 [binaryage/devtools "1.0.2"]]
                   :plugins      [[com.jakemccrary/lein-test-refresh "0.24.1"]
                                  [jonase/eastwood "0.3.5"]]
 

@@ -13,11 +13,11 @@ clean:
 	@echo "Removing compiled files..."
 	lein clean
 
-dev-server:
+clj-server:
 	@echo "Starting dev server..."
 	lein run
 
-dev-client:
+cljs-server:
 	@echo "Starting client server..."
 	npx shadow-cljs watch app
 

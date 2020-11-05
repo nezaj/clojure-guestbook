@@ -12,48 +12,49 @@
    {:db {:messages/loading? true}}))
 
 (rf/reg-sub
-  :messages/loading?
-  (fn [db _]
-    (:messages/loading? db)))
+ :messages/loading?
+ (fn [db _]
+   (:messages/loading? db)))
 
 (rf/reg-sub
-  :messages/list
-  (fn [db _]
-    (:messages/list db [])))
+ :messages/list
+ (fn [db _]
+   (:messages/list db [])))
 
 (rf/reg-event-db
-  :messages/set
-  (fn [db [_ messages]]
-    (-> db
-        (assoc :messages/loading? false
-               :messages/list messages))))
+ :messages/set
+ (fn [db [_ messages]]
+   (-> db
+       (assoc :messages/loading? false
+              :messages/list messages))))
 
 (rf/reg-event-db
-  :message/add
-  (fn [db [_ message]]
-    (update db :messages/list conj message)))
+ :message/add
+ (fn [db [_ message]]
+   (update db :messages/list conj message)))
 
 (defn get-messages []
   (GET "/api/messages"
-       {:headers {"Accept" "application/transit+json"}
-        :handler #(rf/dispatch [:messages/set (:messages %)])}))
+    {:headers {"Accept" "application/transit+json"}
+     :handler #(rf/dispatch [:messages/set (:messages %)])}))
 
 (defn send-message! [fields errors]
   (if-let [validation-errors (validate-message @fields)]
     (reset! errors validation-errors)
     (POST "/api/message"
-          {:params @fields
-           :format :json
-           :headers
-           {"Accept" "application/transit+json"
-            "x-csrf-token" (.-value (.getElementById js/document "token"))}
-           :handler #(do
-                       (rf/dispatch [:message/add (assoc @fields :timestamp (js/Date.))])
-                       (reset! fields nil)
-                       (reset! errors nil))
-           :error-handler #(do
-                             (.error js/console (str "error:" %))
-                             (reset! errors (get-in % [:response :errors])))})))
+      {:params @fields
+       :format :json
+       :headers
+       {"Accept" "application/transit+json"
+        "x-csrf-token" (.-value (.getElementById js/document "token"))}
+       :handler #(do
+                   (rf/dispatch [:message/add (-> @fields
+                                                  (assoc :timestamp (js/Date.)))])
+                   (reset! fields nil)
+                   (reset! errors nil))
+       :error-handler #(do
+                         (.error js/console (str "error:" %))
+                         (reset! errors (get-in % [:response :errors])))})))
 
 (defn errors-component [errors id]
   (when-let [error (id @errors)]
@@ -89,12 +90,12 @@
 
 (defn message-list [messages]
   [:ul.messages
-    (for [{:keys [timestamp message name]} @messages]
-      ^{:key timestamp}
-      [:li
-       [:time (.toLocaleString timestamp)]
-       [:p message]
-       [:p " - " name]])])
+   (for [{:keys [timestamp message name]} @messages]
+     ^{:key timestamp}
+     [:li
+      [:time (.toLocaleString timestamp)]
+      [:p message]
+      [:p "@" name]])])
 
 (defn home []
   (let [messages (rf/subscribe [:messages/list])]
@@ -103,11 +104,11 @@
        (if @(rf/subscribe [:messages/loading?])
          [:h3 "Loading Messages..."]
          [:div
-           [:div.columns>div.column
-            [:h3 "Messages"]
-            [message-list messages]]
-           [:div.columns>div.column
-            [message-form]]])])))
+          [:div.columns>div.column
+           [:h3 "Messages"]
+           [message-list messages]]
+          [:div.columns>div.column
+           [message-form]]])])))
 
 (defn ^:dev/after-load mount-components []
   (rf/clear-subscription-cache!)
@@ -122,5 +123,5 @@
   (mount-components))
 
 (dom/render
-  [home]
-  (.getElementById js/document "content"))
+ [home]
+ (.getElementById js/document "content"))
