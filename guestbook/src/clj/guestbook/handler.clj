@@ -9,7 +9,8 @@
    [guestbook.layout :refer [error-page]]
    [guestbook.middleware :as middleware]
    [guestbook.routes.home :refer [home-routes]]
-   [guestbook.routes.services :refer [service-routes]]))
+   [guestbook.routes.services :refer [service-routes]]
+   [guestbook.routes.websockets :refer [websocket-routes]]))
 
 (mount/defstate init-app
   :start ((or (:init defaults) (fn [])))
@@ -20,7 +21,8 @@
   (ring/ring-handler
    (ring/router
     [(home-routes)
-     (service-routes)])
+     (service-routes)
+     (websocket-routes)])
    (ring/routes
     (ring/create-resource-handler
      {:path "/"})
