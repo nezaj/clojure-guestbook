@@ -2,6 +2,7 @@
   (:require [reagent.core :as r]
             [reagent.dom :as dom]
             [re-frame.core :as rf]
+            [mount.core :as mount]
             [ajax.core :refer [GET POST]]
             [clojure.string :as string]
             [guestbook.validation :refer [validate-message]]
@@ -115,7 +116,7 @@
 (rf/reg-event-fx
  :message/send!
  (fn [{:keys [db]} [_ fields]]
-   (ws/send-message! fields)
+   (ws/send! [:message/create! fields])
    {:db (dissoc db :form/server-errors)}))
 
 ;; components
@@ -195,14 +196,12 @@
 (defn handle-response! [response]
   (if-let [errors (:errors response)]
     (rf/dispatch [:form/set-server-errors errors])
-    (do
-      (rf/dispatch [:message/add response]))))
+    (rf/dispatch [:message/add response])))
 
 (defn init! []
   (.log js/console "Initializing App...")
+  (mount/start)
   (rf/dispatch [:app/initialize])
-  (ws/connect! (str "ws://" (.-host js/location) "/ws")
-               handle-response!)
   (mount-components))
 
 (dom/render

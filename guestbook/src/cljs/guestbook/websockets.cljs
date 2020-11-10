@@ -1,25 +1,59 @@
 (ns guestbook.websockets
-  (:require [cljs.reader :as edn]
-            [re-frame.core :as rf]))
+  (:require-macros [mount.core :refer [defstate]])
+  (:require [re-frame.core :as rf]
+            [taoensso.sente :as sente]
+            mount.core))
 
-(defonce channel (atom nil))
+(defstate socket
+  :start (sente/make-channel-socket!
+          "/ws"
+          (.-value (.getElementById js/document "token"))
+          {:type :auto
+           :wrap-recv-evs? false}))
 
-(defn connect! [url receive-handler]
-  (if-let [chan (js/WebSocket. url)]
-    (do
-      (.log js/console "Connected!")
-      (set! (.-onmessage chan) #(->> %
-                                     .-data
-                                     edn/read-string
-                                     receive-handler))
-      (reset! channel chan))
-    (throw (ex-info "Websocket connection failed!"
-                    {:url url}))))
+(defmulti handle-message
+  (fn [{:keys [id]} _]
+    id))
 
-(defn send-message! [msg]
-  (if-let [chan @channel]
-    (do
-      (.send chan (pr-str msg))
-      (rf/dispatch [:form/clear-fields]))
-    (throw (ex-info "Failed to send message, channel isn't open!"
-                    {:message msg}))))
+(defmethod handle-message :message/add
+  [_ msg-add-event]
+  (rf/dispatch msg-add-event))
+
+(defmethod handle-message :message/creation-errors
+  [_ [_ response]]
+  (rf/dispatch
+   [:form/set-server-errors (:errors response)]))
+
+;; Default handlers
+;; ------------------------
+(defmethod handle-message :chsk/handshake
+  [{:keys [event]} _]
+  (.log js/console "Connection Established: " (pr-str event)))
+
+(defmethod handle-message :chsk/state
+  [{:keys [event]} _]
+  (.log js/console "State Changed: " (pr-str event)))
+
+(defmethod handle-message :default
+  [{:keys [event]} _]
+  (.warn js/console "Unknown websocket message: " (pr-str event)))
+
+(defn send! [message]
+  (if-let [send-fn (:send-fn @socket)]
+    (send-fn message)
+    (throw (ex-info "Couldn't send message, channel isn't open!"
+                    {:message message}))))
+
+;; Router
+;; ------------------------
+(defn receive-message!
+  [{:keys [id event] :as ws-message}]
+  (.log js/console "Event received: " (pr-str event))
+  (handle-message ws-message event))
+
+(defstate channel-router
+  :start (sente/start-chsk-router!
+          (:ch-recv @socket)
+          #'receive-message!)
+  :stop (when-let [stop-fn @channel-router]
+          (stop-fn)))

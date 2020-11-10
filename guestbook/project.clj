@@ -9,6 +9,7 @@
                  [cljs-ajax "0.8.0"]
                  [clojure.java-time "0.3.2"]
                  [com.h2database/h2 "1.4.200"]
+                 [com.taoensso/sente "1.15.0"]
                  [conman "0.8.4"]
                  [cprop "0.1.15"]
                  [expound "0.8.3"]
