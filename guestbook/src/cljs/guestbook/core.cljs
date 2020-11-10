@@ -8,6 +8,10 @@
             [guestbook.validation :refer [validate-message]]
             [guestbook.websockets :as ws]))
 
+;; constants
+;; ------------------------
+(def SEND_CB_TIMEOUT 10000)
+
 ;; app
 ;; ------------------------
 (rf/reg-event-fx
@@ -116,7 +120,14 @@
 (rf/reg-event-fx
  :message/send!
  (fn [{:keys [db]} [_ fields]]
-   (ws/send! [:message/create! fields])
+   (ws/send!
+     [:message/create! fields]
+     SEND_CB_TIMEOUT
+     (fn [{:keys [success errors] :as response}]
+       (.log js/console "Called Back: " (pr-str response))
+       (if success
+         (rf/dispatch [:form/clear-fields])
+         (rf/dispatch [:form/set-server-errors errors]))))
    {:db (dissoc db :form/server-errors)}))
 
 ;; components

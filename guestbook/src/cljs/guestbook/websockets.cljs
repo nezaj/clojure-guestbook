@@ -11,6 +11,12 @@
           {:type :auto
            :wrap-recv-evs? false}))
 
+(defn send! [& args]
+  (if-let [send-fn (:send-fn @socket)]
+    (apply send-fn args)
+    (throw (ex-info "Couldn't send message, channel isn't open!"
+                    {:message (first args)}))))
+
 (defmulti handle-message
   (fn [{:keys [id]} _]
     id))
@@ -37,12 +43,6 @@
 (defmethod handle-message :default
   [{:keys [event]} _]
   (.warn js/console "Unknown websocket message: " (pr-str event)))
-
-(defn send! [message]
-  (if-let [send-fn (:send-fn @socket)]
-    (send-fn message)
-    (throw (ex-info "Couldn't send message, channel isn't open!"
-                    {:message message}))))
 
 ;; Router
 ;; ------------------------
