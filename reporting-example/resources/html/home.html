@@ -1,0 +1,19 @@
+{% extends "base.html" %} {% block content %}
+<div class="row">
+  <div class="span12">
+    <h1>Select report type:</h1>
+    <ul class="nav nav-pills">
+      <li class="btn btn-default">
+        <a href="/report/list">List reports</a>
+      </li>
+      <li class="btn btn-default">
+        <a href="/report/table">Table reports</a>
+      </li>
+    </ul>
+    {% if error %}
+    <h2>An error has occurred while generating the report:</h2>
+    <div class="alert alert-danger">{{error}}</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
