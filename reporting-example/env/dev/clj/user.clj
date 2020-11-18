@@ -36,9 +36,7 @@
   "Restarts database."
   []
   (mount/stop #'reporting-example.db.core/*db*)
-  (mount/start #'reporting-example.db.core/*db*)
-  (binding [*ns* 'reporting-example.db.core]
-    (conman/bind-connection reporting-example.db.core/*db* "sql/queries.sql")))
+  (mount/start #'reporting-example.db.core/*db*))
 
 (defn reset-db
   "Resets database."
