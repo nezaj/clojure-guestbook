@@ -7,7 +7,6 @@
     [muuntaja.core :as m]
     [mount.core :as mount]))
 
-(+ 1 1)
 (defn parse-json [body]
   (m/decode formats/instance "application/json" body))
 

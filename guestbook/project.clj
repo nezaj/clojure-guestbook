@@ -8,9 +8,8 @@
                  [cider/piggieback "0.5.2"]
                  [cljs-ajax "0.8.0"]
                  [clojure.java-time "0.3.2"]
-                 [com.h2database/h2 "1.4.200"]
                  [com.taoensso/sente "1.15.0"]
-                 [conman "0.8.4"]
+                 [conman "0.9.0"]
                  [cprop "0.1.15"]
                  [expound "0.8.3"]
                  [funcool/struct "1.4.0"]
@@ -37,7 +36,8 @@
                  [ring/ring-core "1.8.0"]
                  [ring/ring-defaults "0.3.2"]
                  [selmer "1.12.18"]
-                 [thheller/shadow-cljs "2.11.7"]]
+                 [thheller/shadow-cljs "2.11.7"]
+                 [org.postgresql/postgresql "42.2.18"]]
 
   :min-lein-version "2.0.0"
 

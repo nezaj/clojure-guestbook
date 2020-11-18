@@ -3,7 +3,7 @@ MAKE = make $(MAKEFLAGS)
 
 clj-repl:
 	@echo "Starting clj repl..."
-	lein repl
+	lein repl :connect 7000
 
 cljs-repl:
 	@echo "Starting cljs repl..."

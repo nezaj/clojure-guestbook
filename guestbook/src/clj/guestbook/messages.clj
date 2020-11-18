@@ -4,7 +4,7 @@
    [guestbook.validation :refer [validate-message]]))
 
 (defn message-list []
-  {:messages (vec (db/get-messages))})
+  {:messages (db/get-messages)})
 
 (defn save-message! [message]
   (if-let [errors (validate-message message)]

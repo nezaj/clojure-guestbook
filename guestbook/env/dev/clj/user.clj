@@ -1,10 +1,10 @@
 (ns user
   "Userspace functions you can run by default in your local REPL."
   (:require
+   [clojure.tools.logging :as log]
    [clojure.pprint]
    [clojure.spec.alpha :as s]
 
-   [conman.core :as conman]
    [expound.alpha :as expound]
    [luminus-migrations.core :as migrations]
    [mount.core :as mount]
@@ -38,9 +38,7 @@
   "Restarts database."
   []
   (mount/stop #'guestbook.db.core/*db*)
-  (mount/start #'guestbook.db.core/*db*)
-  (binding [*ns* 'guestbook.db.core]
-    (conman/bind-connection guestbook.db.core/*db* "sql/queries.sql")))
+  (mount/start #'guestbook.db.core/*db*))
 
 (defn reset-db
   "Resets database."
