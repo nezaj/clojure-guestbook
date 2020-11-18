@@ -229,6 +229,30 @@
       [:p message]
       [:p "@" name]])])
 
+(defn navbar []
+  (let [burger-active (r/atom false)]
+    (fn []
+      [:nav.navbar.is-info
+       [:div.container
+        [:div.navbar-brand
+         [:a.navbar-item
+          {:href "/"
+           :style {:font-weight "bold"}}
+          "guestbook"]
+         [:span.navbar-burger.burger
+          {:data-target "nav-menu"
+           :on-click #(swap! burger-active not)
+           :class (when @burger-active "is-active")}
+          [:span]
+          [:span]
+          [:span]]]
+        [:div#nav-menu.navbar-menu
+         {:class (when @burger-active "is-active")}
+         [:div.navbar-start
+          [:a.navbar-item
+           {:href "/"}
+           "home"]]]]])))
+
 (defn home []
   (let [messages (rf/subscribe [:messages/list])]
     (fn []
@@ -243,6 +267,13 @@
           [:div.columns>div.column
            [message-form]]])])))
 
+(defn app []
+  [:div.app
+   [navbar]
+   [:section.section
+    [:div.container
+     [home]]]])
+
 ;; init
 ;; ------------------------
 (rf/reg-event-fx
@@ -254,7 +285,7 @@
 (defn ^:dev/after-load mount-components []
   (rf/clear-subscription-cache!)
   (.log js/console "Mounting components...")
-  (dom/render [#'home] (.getElementById js/document "content"))
+  (dom/render [#'app] (.getElementById js/document "content"))
   (.log js/console "Components Mounted!"))
 
 (defn init! []
