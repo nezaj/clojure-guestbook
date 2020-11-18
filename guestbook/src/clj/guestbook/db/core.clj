@@ -1,7 +1,6 @@
 (ns guestbook.db.core
   (:require
    [clojure.java.jdbc :as jdbc]
-   [cheshire.core :refer [generate-string parse-string]]
    [next.jdbc.sql :as sql]
    [next.jdbc.result-set :as rs]
    [conman.core :as conman]
@@ -9,8 +8,7 @@
    [java-time :refer [java-date]]
    [mount.core :refer [defstate]]
 
-   [guestbook.config :refer [env]])
-  (:import (org.postgresql.util PGobject)))
+   [guestbook.config :refer [env]]))
 
 (defstate ^:dynamic *db*
   :start (conman/connect! {:jdbc-url (env :database-url)})
@@ -47,15 +45,39 @@
 
 ; queries
 ; -------------
-(defn save-message! [{:keys [name message]}]
-  (sql/insert! *db* :posts {:name name :message message}))
+(defn save-message!
+  ([params] (save-message! *db* params))
+  ([conn params]
+   (sql/insert! conn
+                :posts
+                (select-keys params [:name :message]))))
 
-(defn get-messages []
-  (sql/query *db* ["SELECT id, name, message, timestamp FROM posts"] {:builder-fn rs/as-unqualified-maps}))
+(defn get-messages
+  ([] (get-messages *db*))
+  ([conn]
+   (sql/query conn
+              ["SELECT id, name, message, timestamp FROM posts"]
+              {:builder-fn rs/as-unqualified-maps})))
 
-; Seed data from previous db
+(defn create-user!
+  ([params] (create-user! *db* params))
+  ([conn params]
+   (sql/insert! conn
+                :users
+                (select-keys params [:login :password]))))
+
+(defn get-user-for-auth
+  ([params] (get-user-for-auth *db* params))
+  ([conn {:keys [login]}]
+   (first (sql/query conn
+                     ["SELECT * FROM users WHERE login = ?" login]
+                     {:builder-fn rs/as-unqualified-maps}))))
+
+; one-off migration of data from h2 to postgres
 ; Note: using jdbc here as opposed to next.jdbc so format of datasource is different
 ; ---------
+
+
 (comment
   (->>
    (jdbc/query

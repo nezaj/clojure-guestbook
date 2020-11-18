@@ -10,6 +10,7 @@
    [reitit.ring.middleware.parameters :as parameters]
    [ring.util.http-response :as response]
 
+   [guestbook.auth :as auth]
    [guestbook.messages :as msg]
    [guestbook.middleware :as middleware]
    [guestbook.middleware.formats :as formats]))
@@ -41,6 +42,55 @@
     ["/swagger-ui*"
      {:get (swagger-ui/create-swagger-ui-handler
             {:url "/api/swagger.json"})}]]
+   ["/login"
+    {:post {:parameters
+            {:body
+             {:login string?
+              :password string?}}
+            :responses
+            {200
+             {:body
+              {:identity
+               {:login string?
+                :created_at inst?}}}
+             401
+             {:body
+              {:message string?}}}
+            :handler
+            (fn [{{{:keys [login password]} :body} :parameters
+                  session :session}]
+              (if-some [user (auth/authenticate-user login password)]
+                (->
+                 (response/ok
+                  {:identity user})
+                 (assoc :session (assoc session :identity user)))
+                (response/unauthorized
+                 {:message "Incorrect login or password."})))}}]
+   ["/register"
+    {:post
+     {:parameters
+      {:body
+       {:login string?
+        :password string?
+        :confirm string?}}
+      :responses
+      {200 {:body {:message string?}}
+       400 {:body {:message string?}}
+       409 {:body {:message string?}}}
+      :handler
+      (fn [{{{:keys [login password confirm]} :body} :parameters}]
+        (if-not (= password confirm)
+          (response/bad-request
+           {:message "Passwords do not match"})
+          (try
+            (auth/register-user! login password)
+            (response/ok {:message "Thanks for signing up! Feel free to log in :)"})
+            (catch clojure.lang.ExceptionInfo e
+              (if (= (:guestbook/error-id (ex-data e))
+                     ::auth/duplicate-user)
+                (response/conflict
+                 {:message "A user with this login already exists"})
+                (throw e))))))}}]
    ["/messages"
     {:get
      {:responses

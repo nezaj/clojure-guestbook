@@ -37,7 +37,8 @@
                  [ring/ring-defaults "0.3.2"]
                  [selmer "1.12.18"]
                  [thheller/shadow-cljs "2.11.7"]
-                 [org.postgresql/postgresql "42.2.18"]]
+                 [org.postgresql/postgresql "42.2.18"]
+                 [buddy "2.0.0"]]
 
   :min-lein-version "2.0.0"
 
