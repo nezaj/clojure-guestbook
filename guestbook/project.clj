@@ -48,7 +48,27 @@
   :target-path "target/%s/"
   :main ^:skip-aot guestbook.core
 
-  :plugins [[lein-cljfmt "0.7.0"]]
+  :plugins [[lein-cljfmt "0.7.0"]
+            [lein-shadow "0.2.0"]]
+  :clean-targets ^{:protect false}
+  [:target-path "target/cljsbuild"]
+  :shadow-cljs
+  {:nrepl {:port 7022}
+   :builds
+   {:app
+    {:target :browser
+     :output-dir "target/cljsbuild/public/js"
+     :asset-path "/js"
+     :modules {:app {:entries [guestbook.app]}}
+     :devtools {:preloads [day8.re-frame-10x.preload]
+                :watch-dir "resources/public"}}
+    :test
+    {:target :node-test
+     :output-to "target/test/test.js"
+     :autorun true}}}
+
+  :npm-deps []
+  :npm-dev-deps [[xmlhttprequest "1.8.0"]]
 
   :profiles
   {:uberjar {:omit-source true
