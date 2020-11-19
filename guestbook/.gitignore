@@ -5,6 +5,7 @@
 /checkouts
 pom.xml
 dev-config.edn
+shadow-cljs.edn
 test-config.edn
 *.jar
 *.class
