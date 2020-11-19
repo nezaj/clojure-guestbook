@@ -1,5 +1,8 @@
 (ns guestbook.routes.services
   (:require
+   [clojure.tools.logging :as log]
+   [spec-tools.data-spec :as ds]
+
    [reitit.swagger :as swagger]
    [reitit.swagger-ui :as swagger-ui]
    [reitit.ring.coercion :as coercion]
@@ -12,7 +15,6 @@
 
    [guestbook.auth :as auth]
    [guestbook.messages :as msg]
-   [guestbook.middleware :as middleware]
    [guestbook.middleware.formats :as formats]))
 
 (defn service-routes []
@@ -42,6 +44,22 @@
     ["/swagger-ui*"
      {:get (swagger-ui/create-swagger-ui-handler
             {:url "/api/swagger.json"})}]]
+   ["/session"
+    {:get
+     {:responses
+      {200
+       {:body
+        {:session
+         {:identity
+          (ds/maybe
+           {:login string?
+            :created_at inst?})}}}}
+      :handler
+      (fn [{{:keys [identity]} :session}]
+        (response/ok {:session
+                      {:identity
+                       (not-empty
+                        (select-keys identity [:login :created_at]))}}))}}]
    ["/login"
     {:post {:parameters
             {:body
@@ -66,6 +84,13 @@
                  (assoc :session (assoc session :identity user)))
                 (response/unauthorized
                  {:message "Incorrect login or password."})))}}]
+   ["/logout"
+    {:post
+     {:handler (fn [_]
+                 (log/info "Logging out!")
+                 (->
+                  (response/ok)
+                  (assoc :session nil)))}}]
    ["/register"
     {:post
      {:parameters
@@ -74,17 +99,26 @@
         :password string?
         :confirm string?}}
       :responses
-      {200 {:body {:message string?}}
+      {200
+       {:body
+        {:identity
+         {:login string?
+          :created_at inst?}}}
        400 {:body {:message string?}}
        409 {:body {:message string?}}}
       :handler
-      (fn [{{{:keys [login password confirm]} :body} :parameters}]
+      (fn [{{{:keys [login password confirm]} :body} :parameters
+            session :session}]
         (if-not (= password confirm)
           (response/bad-request
            {:message "Passwords do not match"})
           (try
             (auth/register-user! login password)
-            (response/ok {:message "Thanks for signing up! Feel free to log in :)"})
+            (let [user (auth/authenticate-user login password)]
+              (->
+               (response/ok
+                {:identity user})
+               (assoc :session (assoc session :identity user))))
             (catch clojure.lang.ExceptionInfo e
               (if (= (:guestbook/error-id (ex-data e))
                      ::auth/duplicate-user)
