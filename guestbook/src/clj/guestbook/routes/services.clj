@@ -75,13 +75,15 @@
              {:body
               {:message string?}}}
             :handler
-            (fn [{{{:keys [login password]} :body} :parameters
-                  session :session}]
+            (fn [{{{:keys [login password]} :body}  :parameters
+                  session                           :session}]
               (if-some [user (auth/authenticate-user login password)]
                 (->
                  (response/ok
                   {:identity user})
-                 (assoc :session (assoc session :identity user)))
+                 (assoc :session (assoc session
+                                        :identity
+                                        user)))
                 (response/unauthorized
                  {:message "Incorrect login or password."})))}}]
    ["/logout"
@@ -151,10 +153,12 @@
        {:body map?}}
 
       :handler
-      (fn [{{params :body} :parameters}]
+      (fn [{{params :body} :parameters
+            {:keys [identity]} :session}]
         (try
-          (msg/save-message! params)
-          (response/ok {:status :ok})
+          (->> (msg/save-message! identity params)
+               (assoc {:status :ok} :post)
+               (response/ok))
           (catch Exception e
             (let [{id :guestbook/error-id
                    errors :errors} (ex-data e)]

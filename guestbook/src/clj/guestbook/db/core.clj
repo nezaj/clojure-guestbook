@@ -50,13 +50,14 @@
   ([conn params]
    (sql/insert! conn
                 :posts
-                (select-keys params [:name :message]))))
+                (select-keys params [:name :message :author])
+                {:builder-fn rs/as-unqualified-maps})))
 
 (defn get-messages
   ([] (get-messages *db*))
   ([conn]
    (sql/query conn
-              ["SELECT id, name, message, timestamp FROM posts"]
+              ["SELECT * FROM posts"]
               {:builder-fn rs/as-unqualified-maps})))
 
 (defn create-user!
@@ -64,7 +65,8 @@
   ([conn params]
    (sql/insert! conn
                 :users
-                (select-keys params [:login :password]))))
+                (select-keys params [:login :password])
+                {:builder-fn rs/as-unqualified-maps})))
 
 (defn get-user-for-auth
   ([params] (get-user-for-auth *db* params))

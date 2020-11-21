@@ -18,6 +18,7 @@
 (defn send!
   "Sends event using receiving socket send-fn"
   [& args]
+  (.log js/console "Running send! from cljs")
   (if-let [send-fn (:send-fn @socket)]
     (apply send-fn args)
     (throw (ex-info "Couldn't send message, channel isn't open!"
@@ -27,6 +28,7 @@
  :ws/send!
  (fn [{:keys [message timeout callback-event]
        :or {timeout CB_EVENT_TIMEOUT}}]
+   (.log js/console (str "Handing ws/send effect from cljs " message))
    (if callback-event
      (send! message timeout #(rf/dispatch (conj callback-event %)))
      (send! message))))
@@ -41,6 +43,7 @@
 ;; ------------------------
 (defmethod handle-message :message/add
   [_ msg-add-event]
+  (.log js/console (str "Handling :message/add from cljs " msg-add-event))
   (rf/dispatch msg-add-event))
 
 (defmethod handle-message :message/creation-errors

@@ -126,6 +126,7 @@
 (rf/reg-event-db
  :message/add
  (fn [db [_ message]]
+   (.log js/console (str "Adding message " message))
    (update db :messages/list conj message)))
 
 (rf/reg-event-fx
@@ -138,6 +139,7 @@
 (rf/reg-event-fx
  :message/send!
  (fn [{:keys [db]} [_ fields]]
+   (.log js/console (str "Sending message with fields " fields))
    {:db (dissoc db :form/server-errors)
     :ws/send! {:message [:message/create! fields]
                :timeout SEND_CB_TIMEOUT
@@ -429,12 +431,16 @@
 
 (defn message-list [messages]
   [:ul.messages
-   (for [{:keys [timestamp message name]} @messages]
+   (for [{:keys [timestamp message name author]} @messages]
      ^{:key timestamp}
      [:li
       [:time (.toLocaleString timestamp)]
       [:p message]
-      [:p "@" name]])])
+      [:p "-" name
+       " <"
+       (if author
+         (str "@" author)
+         [:span.is-italic "account not found"]) ">"]])])
 
 (defn navbar []
   (let [burger-active (r/atom false)]
