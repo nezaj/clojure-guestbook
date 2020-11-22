@@ -224,6 +224,7 @@
 (rf/reg-event-db
  :auth/handle-logout
  (fn [db _]
+   (rf/dispatch [:form/clear-fields])
    (dissoc db :auth/user)))
 
 (rf/reg-sub
@@ -425,7 +426,7 @@
 (defn message-form []
   [:div
    [form-errors-component :server-error]
-   [form-errors-component :unauthorized "Please log in before posting."]
+   [form-errors-component :unauthorized]
    [:div.field
     [:label.label {:for :name} "Name"]
     [field-errors-component :name]
@@ -511,7 +512,20 @@
            [message-list messages]
            [reload-messages-button]]
           [:div.columns>div.column
-           [message-form]]])])))
+           (case @(rf/subscribe [:auth/user-state])
+             :loading
+             [:div {:style {:width "5em"}}
+              [:progress.progress.is-dark.is-small {:max 100} "30%"]]
+
+             :authenticated
+             [message-form]
+
+             :anonymous
+             [:div.notification.is-clearfix
+              [:span "Log in or create an account to post a message!"]
+              [:div.buttons.is-pulled-right
+               [login-button]
+               [register-button]]])]])])))
 
 (defn app []
   [:div.app

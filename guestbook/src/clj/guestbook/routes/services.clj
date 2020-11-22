@@ -109,11 +109,14 @@
    ["/logout"
     {:auth/roles (auth/roles :auth/logout)
      :post
-     {:handler (fn [_]
+     {:handler (fn [req]
                  (log/info "Logging out!")
                  (->
                   (response/ok)
-                  (assoc :session nil)))}}]
+                  (assoc :session
+                         (select-keys
+                          (:session req)
+                          [:ring.middleware.anti-forgery/anti-forgery-token]))))}}]
    ["/register"
     {:auth/roles (auth/roles :account/register)
      :post
@@ -142,7 +145,9 @@
               (->
                (response/ok
                 {:identity user})
-               (assoc :session (assoc session :identity user))))
+               (assoc :session (assoc session
+                                      :identity
+                                      user))))
             (catch clojure.lang.ExceptionInfo e
               (if (= (:guestbook/error-id (ex-data e))
                      ::auth/duplicate-user)
