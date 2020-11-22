@@ -1,5 +1,6 @@
 (ns guestbook.db.core
   (:require
+   [clojure.tools.logging :as log]
    [clojure.java.jdbc :as jdbc]
    [next.jdbc.sql :as sql]
    [next.jdbc.result-set :as rs]
@@ -46,10 +47,12 @@
 ; queries
 ; -------------
 (defn db-query [conn sql]
+  (log/info "Running query " sql)
   (sql/query conn sql {:builder-fn rs/as-unqualified-maps}))
 
 (defn db-insert! [conn table-key kvs]
-  sql/insert! conn table-key kvs {:builder-fn rs/as-unqualified-maps})
+  (log/info "Inserting into " table-key kvs)
+  (sql/insert! conn table-key kvs {:builder-fn rs/as-unqualified-maps}))
 
 (defn get-messages
   ([] (get-messages *db*))

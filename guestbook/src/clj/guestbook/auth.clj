@@ -1,5 +1,7 @@
 (ns guestbook.auth
   (:require
+   [clojure.tools.logging :as log]
+   [reitit.ring :as ring]
    [buddy.hashers :as hashers]
    [next.jdbc :as jdbc]
    [guestbook.db.core :as db]))
@@ -18,3 +20,54 @@
   (let [{hashed :password :as user} (db/get-user-for-auth {:login login})]
     (when (hashers/check password hashed)
       (dissoc user :password))))
+
+(defn identity->roles [identity]
+  (cond-> #{:any}
+    (some? identity) (conj :authenticated)))
+
+(def roles
+  {:message/create! #{:authenticated}
+   :auth/login #{:any}
+   :auth/logout #{:any}
+   :account/register #{:any}
+   :session/get #{:any}
+   :messages/list #{:any}
+   :swagger/swagger #{:any}})
+
+
+;; ring auth
+;; --------------------
+
+
+(defn ring-authorized? [roles req]
+  (if (seq roles)
+    (->> req
+         :session
+         :identity
+         identity->roles
+         (some roles)
+         boolean)
+    (do
+      (log/error "roles: " roles "is empty for route: " (:uri req))
+      false)))
+
+(defn get-roles-from-match [req]
+  (-> req
+      (ring/get-match)
+      (get-in [:data :auth/roles] #{})))
+
+(defn wrap-authorized [handler unauthorized-handler]
+  (fn [req]
+    (if (ring-authorized? (get-roles-from-match req) req)
+      (handler req)
+      (unauthorized-handler req))))
+
+;; websocket auth
+;; --------------------
+(defn ws-authorized? [roles-by-id msg]
+  (boolean
+   (some (roles-by-id (:id msg) #{})
+         (-> msg
+             :session
+             :identity
+             (identity->roles)))))

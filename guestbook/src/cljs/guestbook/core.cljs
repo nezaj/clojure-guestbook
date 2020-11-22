@@ -77,11 +77,6 @@
    (get fields id)))
 
 (rf/reg-sub
- :form/server-errors
- (fn [db _]
-   (:form/server-errors db)))
-
-(rf/reg-sub
  :form/validation-errors
  :<- [:form/fields]
  (fn [fields _]
@@ -132,6 +127,9 @@
 (rf/reg-event-fx
  :message/send!-called-back
  (fn [_ [_ {:keys [success errors]}]]
+   (.log js/console
+         "Called-back from server! with success: " success
+         " error: " errors)
    (if success
      {:dispatch [:form/clear-fields]}
      {:dispatch [:form/set-server-errors errors]})))
@@ -162,12 +160,19 @@
 
 (rf/reg-event-db
  :form/set-server-errors
- [(rf/path :form/server-errors)
-  (fn [_ [_ errors]]
-    errors)])
+ [(rf/path :form/server-errors)]
+ (fn [_ [_ errors]]
+   errors))
+
+(rf/reg-sub
+ :form/server-errors
+ (fn [db _]
+   (:form/server-errors db)))
 
 ;; Modals
 ;; -------------------
+
+
 (rf/reg-event-db
  :app/show-modal
  (fn [db [_ modal-id]]
@@ -369,10 +374,21 @@
       :disabled @loading?}
      (if @loading? "Loading messages..." "Refresh messages")]))
 
-(defn errors-component [id]
+(defn form-errors-component
+  "Form level errors"
+  [id & [message]]
+  (when-let [error @(rf/subscribe [:form/error id])]
+    [:div.notification.is-danger (if message
+                                   message
+                                   (string/join error))]))
+(defn field-errors-component
+  "Field level errors"
+  [id & [message]]
   (if-let [_ @(rf/subscribe [:form/field id])]
     (when-let [error @(rf/subscribe [:form/error id])]
-      [:div.notification.is-danger (string/join error)])))
+      [:div.notification.is-danger (if message
+                                     message
+                                     (string/join error))])))
 
 (defn text-input [{val :value
                    attrs :attrs
@@ -408,16 +424,17 @@
 
 (defn message-form []
   [:div
-   [errors-component :server-error]
+   [form-errors-component :server-error]
+   [form-errors-component :unauthorized "Please log in before posting."]
    [:div.field
     [:label.label {:for :name} "Name"]
-    [errors-component :name]
+    [field-errors-component :name]
     [text-input {:attrs {:name :name}
                  :value (rf/subscribe [:form/field :name])
                  :on-save #(rf/dispatch [:form/set-field :name %])}]]
    [:div.field
     [:label.label {:for :message} "Message"]
-    [errors-component :message]
+    [field-errors-component :message]
     [textarea-input
      {:attrs {:name :message}
       :value (rf/subscribe [:form/field :message])

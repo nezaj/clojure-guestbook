@@ -17,6 +17,19 @@
    [guestbook.messages :as msg]
    [guestbook.middleware.formats :as formats]))
 
+(defn unauthorized-handler [req]
+  (let [route-roles (auth/get-roles-from-match req)]
+    (log/info "Roles for route: " (:uri req) route-roles)
+    (log/info "User is unauthorized! User roles: "
+              (-> req
+                  :session
+                  :identity
+                  :roles))
+    (response/forbidden
+     {:message
+      (str "User must have one of the following roles: "
+           route-roles)})))
+
 (defn service-routes []
   ["/api"
    {:middleware [;; query-params & form-params
@@ -34,7 +47,12 @@
                  ;; coercing request parameters
                  coercion/coerce-request-middleware
                  ;; multipart params
-                 multipart/multipart-middleware]
+                 multipart/multipart-middleware
+                 ;; Authorization
+                 (fn [handler]
+                   (auth/wrap-authorized
+                    handler
+                    unauthorized-handler))]
     :muuntaja formats/instance
     :coercion spec-coercion/coercion
     :swagger {:id ::api}}
@@ -45,7 +63,8 @@
      {:get (swagger-ui/create-swagger-ui-handler
             {:url "/api/swagger.json"})}]]
    ["/session"
-    {:get
+    {:auth/roles (auth/roles :session/get)
+     :get
      {:responses
       {200
        {:body
@@ -61,7 +80,8 @@
                        (not-empty
                         (select-keys identity [:login :created_at]))}}))}}]
    ["/login"
-    {:post {:parameters
+    {:auth/roles (auth/roles :auth/login)
+     :post {:parameters
             {:body
              {:login string?
               :password string?}}
@@ -87,14 +107,16 @@
                 (response/unauthorized
                  {:message "Incorrect login or password."})))}}]
    ["/logout"
-    {:post
+    {:auth/roles (auth/roles :auth/logout)
+     :post
      {:handler (fn [_]
                  (log/info "Logging out!")
                  (->
                   (response/ok)
                   (assoc :session nil)))}}]
    ["/register"
-    {:post
+    {:auth/roles (auth/roles :account/register)
+     :post
      {:parameters
       {:body
        {:login string?
@@ -128,7 +150,8 @@
                  {:message "A user with this login already exists"})
                 (throw e))))))}}]
    ["/messages"
-    {:get
+    {:auth/roles (auth/roles :messages/list)
+     :get
      {:responses
       {200
        {:body
@@ -142,7 +165,8 @@
         (response/ok (msg/message-list)))}}]
 
    ["/message"
-    {:post
+    {:auth/roles (auth/roles :message/create!)
+     :post
      {:parameters
       {:body
        {:name string?
