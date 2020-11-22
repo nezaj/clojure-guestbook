@@ -58,9 +58,11 @@
     :swagger {:id ::api}}
    ["" {:no-doc true}
     ["/swagger.json"
-     {:get (swagger/create-swagger-handler)}]
+     {:auth/roles (auth/roles :swagger/swagger)
+      :get (swagger/create-swagger-handler)}]
     ["/swagger-ui*"
-     {:get (swagger-ui/create-swagger-ui-handler
+     {:auth/roles (auth/roles :swagger/swagger)
+      :get (swagger-ui/create-swagger-ui-handler
             {:url "/api/swagger.json"})}]]
    ["/session"
     {:auth/roles (auth/roles :session/get)
@@ -155,19 +157,33 @@
                  {:message "A user with this login already exists"})
                 (throw e))))))}}]
    ["/messages"
-    {:auth/roles (auth/roles :messages/list)
-     :get
-     {:responses
-      {200
-       {:body
-        {:messages
-         [{:id pos-int?
-           :name string?
-           :message string?
-           :timestamp inst?}]}}}
-      :handler
-      (fn [_]
-        (response/ok (msg/message-list)))}}]
+    {:auth/roles (auth/roles :messages/list)}
+    ["" {:get
+         {:responses
+          {200
+           {:body
+            {:messages
+             [{:id pos-int?
+               :name string?
+               :message string?
+               :timestamp inst?}]}}}
+          :handler
+          (fn [_]
+            (response/ok (msg/message-list)))}}]
+    ["/by/:author"
+     {:get
+      {:parameters {:path {:author string?}}
+       :responses
+       {200
+        {:body
+         {:messages
+          [{:id pos-int?
+            :name string?
+            :message string?
+            :timestamp inst?}]}}}
+       :handler
+       (fn [{{{:keys [author]} :path} :parameters}]
+         (response/ok (msg/messages-by-author author)))}}]]
 
    ["/message"
     {:auth/roles (auth/roles :message/create!)

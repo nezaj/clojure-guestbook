@@ -12,3 +12,6 @@
                     {:guestbook/error-id :validation
                      :errors errors}))
     (db/save-message! (assoc message :author login))))
+
+(defn messages-by-author [author]
+  {:messages (db/get-messages-by-author {:author author})})

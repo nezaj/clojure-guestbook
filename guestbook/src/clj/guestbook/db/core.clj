@@ -56,14 +56,17 @@
 
 (defn get-messages
   ([] (get-messages *db*))
-  ([conn] (db-query conn
-                    ["SELECT * FROM posts"])))
+  ([conn] (db-query conn ["SELECT * FROM posts"])))
 
 (defn get-user-for-auth
   ([params] (get-user-for-auth *db* params))
   ([conn {:keys [login]}]
-   (first (db-query conn
-                    ["SELECT * FROM users WHERE login = ?" login]))))
+   (first (db-query conn ["SELECT * FROM users WHERE login = ?" login]))))
+
+(defn get-messages-by-author
+  ([params] (get-messages-by-author *db* params))
+  ([conn {:keys [author]}]
+   (db-query conn ["SELECT * FROM posts where author = ?" author])))
 
 (defn create-user!
   ([params] (create-user! *db* params))
