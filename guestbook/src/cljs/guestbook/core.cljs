@@ -12,11 +12,9 @@
             [guestbook.validation :refer [validate-message]]
             [guestbook.websockets :as ws]))
 
-;; constants
-;; ------------------------
 (def SEND_CB_TIMEOUT 10000)
 
-;; effect handlers
+;; ajax
 ;; ------------------------
 (rf/reg-fx
  :ajax/get
@@ -55,8 +53,23 @@
  (fn [db _]
    (:session/loading? db)))
 
-;; message queries
+;; messages
 ;; ------------------------
+(rf/reg-event-fx
+ :messages/load
+ (fn [{:keys [db]} _]
+   {:db (assoc db :messages/loading? true)
+    :ajax/get {:url "/api/messages"
+               :success-path [:messages]
+               :success-event [:messages/set]}}))
+
+(rf/reg-event-db
+ :messages/set
+ (fn [db [_ messages]]
+   (-> db
+       (assoc :messages/loading? false
+              :messages/list messages))))
+
 (rf/reg-sub
  :messages/loading?
  (fn [db _]
@@ -67,8 +80,32 @@
  (fn [db _]
    (:messages/list db [])))
 
-;; form queries
-;; ------------------------
+(defn reload-messages-button []
+  (let [loading? (rf/subscribe [:messages/loading?])]
+    [:button.button.is-info.is-fullwidth
+     {:on-click #(rf/dispatch [:messages/load])
+      :disabled @loading?}
+     (if @loading? "Loading messages..." "Refresh messages")]))
+
+(defn message-list [messages]
+  [:ul.messages
+   (for [{:keys [timestamp message name author]} @messages]
+     ^{:key timestamp}
+     [:li
+      [:time (.toLocaleString timestamp)]
+      [:p message]
+      [:p "-" name
+       " <"
+       (if author
+         [:a {:href (str "/user/" author)} (str "@" author)]
+         [:span.is-italic "account not found"]) ">"]])])
+
+(rf/reg-event-db
+ :message/add
+ (fn [db [_ message]]
+   (.log js/console (str "Adding message " message))
+   (update db :messages/list conj message)))
+
 (rf/reg-sub
  :form/fields
  (fn [db _]
@@ -79,6 +116,29 @@
  :<- [:form/fields]
  (fn [fields [_ id]]
    (get fields id)))
+
+(rf/reg-event-db
+ :form/set-field
+ [(rf/path :form/fields)]
+ (fn [fields [_ id value]]
+   (assoc fields id value)))
+
+(rf/reg-event-db
+ :form/clear-fields
+ [(rf/path :form/fields)]
+ (fn [_ _]
+   {}))
+
+(rf/reg-event-db
+ :form/set-server-errors
+ [(rf/path :form/server-errors)]
+ (fn [_ [_ errors]]
+   errors))
+
+(rf/reg-sub
+ :form/server-errors
+ (fn [db _]
+   (:form/server-errors db)))
 
 (rf/reg-sub
  :form/validation-errors
@@ -105,29 +165,6 @@
  (fn [errors [_ id]]
    (get errors id)))
 
-;; message handlers
-;; ------------------------
-(rf/reg-event-fx
- :messages/load
- (fn [{:keys [db]} _]
-   {:db (assoc db :messages/loading? true)
-    :ajax/get {:url "/api/messages"
-               :success-path [:messages]
-               :success-event [:messages/set]}}))
-
-(rf/reg-event-db
- :messages/set
- (fn [db [_ messages]]
-   (-> db
-       (assoc :messages/loading? false
-              :messages/list messages))))
-
-(rf/reg-event-db
- :message/add
- (fn [db [_ message]]
-   (.log js/console (str "Adding message " message))
-   (update db :messages/list conj message)))
-
 (rf/reg-event-fx
  :message/send!-called-back
  (fn [_ [_ {:keys [success errors]}]]
@@ -147,36 +184,80 @@
                :timeout SEND_CB_TIMEOUT
                :callback-event [:message/send!-called-back]}}))
 
-;; form handlers
-;; ------------------------
+(defn form-errors-component
+  "Form level errors"
+  [id & [message]]
+  (when-let [error @(rf/subscribe [:form/error id])]
+    [:div.notification.is-danger (if message
+                                   message
+                                   (string/join error))]))
+(defn field-errors-component
+  "Field level errors"
+  [id & [message]]
+  (if-let [_ @(rf/subscribe [:form/field id])]
+    (when-let [error @(rf/subscribe [:form/error id])]
+      [:div.notification.is-danger (if message
+                                     message
+                                     (string/join error))])))
 
-(rf/reg-event-db
- :form/set-field
- [(rf/path :form/fields)]
- (fn [fields [_ id value]]
-   (assoc fields id value)))
+(defn text-input [{val :value
+                   attrs :attrs
+                   :keys [on-save]}]
+  (let [draft (r/atom nil)
+        value (r/track #(or @draft @val ""))]
+    (fn []
+      [:input.input
+       (merge attrs
+              {:type :text
+               :on-focus #(reset! draft (or @val ""))
+               :on-blur (fn []
+                          (on-save (or @draft ""))
+                          (reset! draft nil))
+               :on-change #(reset! draft (.. % -target -value))
+               :value @value})])))
 
-(rf/reg-event-db
- :form/clear-fields
- [(rf/path :form/fields)]
- (fn [_ _]
-   {}))
+(defn textarea-input [{val :value
+                       attrs :attrs
+                       :keys [on-save]}]
+  (let [draft (r/atom nil)
+        value (r/track #(or @draft @val ""))]
+    (fn []
+      [:textarea.textarea
+       (merge attrs
+              {:type :text
+               :on-focus #(reset! draft (or @val ""))
+               :on-blur (fn []
+                          (on-save (or @draft ""))
+                          (reset! draft nil))
+               :on-change #(reset! draft (.. % -target -value))
+               :value @value})])))
 
-(rf/reg-event-db
- :form/set-server-errors
- [(rf/path :form/server-errors)]
- (fn [_ [_ errors]]
-   errors))
+(defn message-form []
+  [:div
+   [form-errors-component :server-error]
+   [form-errors-component :unauthorized]
+   [:div.field
+    [:label.label {:for :name} "Name"]
+    [field-errors-component :name]
+    [text-input {:attrs {:name :name}
+                 :value (rf/subscribe [:form/field :name])
+                 :on-save #(rf/dispatch [:form/set-field :name %])}]]
+   [:div.field
+    [:label.label {:for :message} "Message"]
+    [field-errors-component :message]
+    [textarea-input
+     {:attrs {:name :message}
+      :value (rf/subscribe [:form/field :message])
+      :on-save #(rf/dispatch [:form/set-field :message %])}]]
+   [:input.button.is-primary
+    {:type :submit
+     :disabled @(rf/subscribe [:form/validation-errors?])
+     :on-click #(rf/dispatch [:message/send!
+                              @(rf/subscribe [:form/fields])])
+     :value "comment"}]])
 
-(rf/reg-sub
- :form/server-errors
- (fn [db _]
-   (:form/server-errors db)))
-
-;; Modals
+;; modals
 ;; -------------------
-
-
 (rf/reg-event-db
  :app/show-modal
  (fn [db [_ modal-id]]
@@ -304,8 +385,6 @@
   [:button.button.is-primary
    login])
 
-;; register
-;; ------------------------
 (defn do-register [fields error]
   (reset! error nil)
   (POST "/api/register"
@@ -363,147 +442,8 @@
                                       (:confirm @fields)])}
       "Create Account"]]))
 
-;; actions
+;; views
 ;; ------------------------
-(defn handle-response! [response]
-  (if-let [errors (:errors response)]
-    (rf/dispatch [:form/set-server-errors errors])
-    (rf/dispatch [:message/add response])))
-
-;; components
-;; ------------------------
-(defn reload-messages-button []
-  (let [loading? (rf/subscribe [:messages/loading?])]
-    [:button.button.is-info.is-fullwidth
-     {:on-click #(rf/dispatch [:messages/load])
-      :disabled @loading?}
-     (if @loading? "Loading messages..." "Refresh messages")]))
-
-(defn form-errors-component
-  "Form level errors"
-  [id & [message]]
-  (when-let [error @(rf/subscribe [:form/error id])]
-    [:div.notification.is-danger (if message
-                                   message
-                                   (string/join error))]))
-(defn field-errors-component
-  "Field level errors"
-  [id & [message]]
-  (if-let [_ @(rf/subscribe [:form/field id])]
-    (when-let [error @(rf/subscribe [:form/error id])]
-      [:div.notification.is-danger (if message
-                                     message
-                                     (string/join error))])))
-
-(defn text-input [{val :value
-                   attrs :attrs
-                   :keys [on-save]}]
-  (let [draft (r/atom nil)
-        value (r/track #(or @draft @val ""))]
-    (fn []
-      [:input.input
-       (merge attrs
-              {:type :text
-               :on-focus #(reset! draft (or @val ""))
-               :on-blur (fn []
-                          (on-save (or @draft ""))
-                          (reset! draft nil))
-               :on-change #(reset! draft (.. % -target -value))
-               :value @value})])))
-
-(defn textarea-input [{val :value
-                       attrs :attrs
-                       :keys [on-save]}]
-  (let [draft (r/atom nil)
-        value (r/track #(or @draft @val ""))]
-    (fn []
-      [:textarea.textarea
-       (merge attrs
-              {:type :text
-               :on-focus #(reset! draft (or @val ""))
-               :on-blur (fn []
-                          (on-save (or @draft ""))
-                          (reset! draft nil))
-               :on-change #(reset! draft (.. % -target -value))
-               :value @value})])))
-
-(defn message-form []
-  [:div
-   [form-errors-component :server-error]
-   [form-errors-component :unauthorized]
-   [:div.field
-    [:label.label {:for :name} "Name"]
-    [field-errors-component :name]
-    [text-input {:attrs {:name :name}
-                 :value (rf/subscribe [:form/field :name])
-                 :on-save #(rf/dispatch [:form/set-field :name %])}]]
-   [:div.field
-    [:label.label {:for :message} "Message"]
-    [field-errors-component :message]
-    [textarea-input
-     {:attrs {:name :message}
-      :value (rf/subscribe [:form/field :message])
-      :on-save #(rf/dispatch [:form/set-field :message %])}]]
-   [:input.button.is-primary
-    {:type :submit
-     :disabled @(rf/subscribe [:form/validation-errors?])
-     :on-click #(rf/dispatch [:message/send!
-                              @(rf/subscribe [:form/fields])])
-     :value "comment"}]])
-
-(defn message-list [messages]
-  [:ul.messages
-   (for [{:keys [timestamp message name author]} @messages]
-     ^{:key timestamp}
-     [:li
-      [:time (.toLocaleString timestamp)]
-      [:p message]
-      [:p "-" name
-       " <"
-       (if author
-         [:a {:href (str "/user/" author)} (str "@" author)]
-         [:span.is-italic "account not found"]) ">"]])])
-
-(defn navbar []
-  (let [burger-active (r/atom false)]
-    (fn []
-      [:nav.navbar.is-info
-       [:div.container
-        [:div.navbar-brand
-         [:a.navbar-item
-          {:href "/"
-           :style {:font-weight "bold"}}
-          "guestbook"]
-         [:span.navbar-burger.burger
-          {:data-target "nav-menu"
-           :on-click #(swap! burger-active not)
-           :class (when @burger-active "is-active")}
-          [:span]
-          [:span]
-          [:span]]]
-        [:div#nav-menu.navbar-menu
-         {:class (when @burger-active "is-active")}
-         [:div.navbar-start
-          [:a.navbar-item
-           {:href "/"}
-           "Home"]]
-         [:div.navbar-end
-          [:div.navbar-item
-           (case @(rf/subscribe [:auth/user-state])
-             :loading
-             [:div {:style {:width "5em"}}
-              [:progress.progress.is-dark.is-small {:max 100} "30%"]]
-
-             :authenticated
-             [:div.buttons
-              [nameplate @(rf/subscribe [:auth/user])]
-              [logout-button]]
-
-             :anonymous
-             [:div.buttons
-              [login-button]
-              [register-button]])]]]]])))
-
 (defn home []
   (let [messages (rf/subscribe [:messages/list])]
     (fn []
@@ -570,10 +510,58 @@
        (rf/dispatch [:router/navigated new-match])))
    {:use-fragment false}))
 
-;; app init
+;; app
 ;; ------------------------
+(rf/reg-event-fx
+ :app/initialize
+ (fn [_ _]
+   {:db {:messages/loading? true
+         :session/loading? true}
+    :dispatch-n [[:session/load] [:messages/load]]}))
+
+(defn navbar []
+  (let [burger-active (r/atom false)]
+    (fn []
+      [:nav.navbar.is-info
+       [:div.container
+        [:div.navbar-brand
+         [:a.navbar-item
+          {:href "/"
+           :style {:font-weight "bold"}}
+          "guestbook"]
+         [:span.navbar-burger.burger
+          {:data-target "nav-menu"
+           :on-click #(swap! burger-active not)
+           :class (when @burger-active "is-active")}
+          [:span]
+          [:span]
+          [:span]]]
+        [:div#nav-menu.navbar-menu
+         {:class (when @burger-active "is-active")}
+         [:div.navbar-start
+          [:a.navbar-item
+           {:href "/"}
+           "Home"]]
+         [:div.navbar-end
+          [:div.navbar-item
+           (case @(rf/subscribe [:auth/user-state])
+             :loading
+             [:div {:style {:width "5em"}}
+              [:progress.progress.is-dark.is-small {:max 100} "30%"]]
+
+             :authenticated
+             [:div.buttons
+              [nameplate @(rf/subscribe [:auth/user])]
+              [logout-button]]
+
+             :anonymous
+             [:div.buttons
+              [login-button]
+              [register-button]])]]]]])))
+
 (defn page [{{:keys [view name]}  :data
              path                 :path}]
+  (.log js/console "Reitit router rendering: " name)
   [:section.section>div.container
    (if view
      [view]
@@ -591,13 +579,6 @@
   (init-routes!)
   (dom/render [#'app] (.getElementById js/document "content"))
   (.log js/console "Components Mounted!"))
-
-(rf/reg-event-fx
- :app/initialize
- (fn [_ _]
-   {:db {:messages/loading? true
-         :session/loading? true}
-    :dispatch-n [[:session/load] [:messages/load]]}))
 
 (defn init! []
   (.log js/console "Initializing App...")

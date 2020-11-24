@@ -8,7 +8,7 @@
    [guestbook.env :refer [defaults]]
    [guestbook.layout :refer [error-page]]
    [guestbook.middleware :as middleware]
-   [guestbook.routes.home :refer [home-routes]]
+   [guestbook.routes :refer [app-routes]]
    [guestbook.routes.services :refer [service-routes]]
    [guestbook.routes.websockets :refer [websocket-routes]]))
 
@@ -16,11 +16,11 @@
   :start ((or (:init defaults) (fn [])))
   :stop  ((or (:stop defaults) (fn []))))
 
-(mount/defstate app-routes
+(mount/defstate routes
   :start
   (ring/ring-handler
    (ring/router
-    [(home-routes)
+    [(app-routes)
      (service-routes)
      (websocket-routes)])
    (ring/routes
@@ -37,4 +37,4 @@
       (constantly (error-page {:status 406, :title "406 - Not acceptable"}))}))))
 
 (defn app []
-  (middleware/wrap-base #'app-routes))
+  (middleware/wrap-base #'routes))
