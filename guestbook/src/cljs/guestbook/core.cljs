@@ -58,8 +58,20 @@
 (rf/reg-event-fx
  :messages/load
  (fn [{:keys [db]} _]
-   {:db (assoc db :messages/loading? true)
+   {:db (assoc db
+               :messages/loading? true
+               :messages/filter nil)
     :ajax/get {:url "/api/messages"
+               :success-path [:messages]
+               :success-event [:messages/set]}}))
+
+(rf/reg-event-fx
+ :messages/load-by-author
+ (fn [{:keys [db]} [_ author]]
+   {:db (assoc db
+               :messages/loading? true
+               :messages/filter {:author author})
+    :ajax/get {:url (str "/api/messages/by/" author)
                :success-path [:messages]
                :success-event [:messages/set]}}))
 
@@ -100,11 +112,27 @@
          [:a {:href (str "/user/" author)} (str "@" author)]
          [:span.is-italic "account not found"]) ">"]])])
 
+(defn add-message?
+  "Validates whether a message matches criteria specified in filter map
+  Expects filter-map of the form {key matcher}"
+  [filter-map msg]
+  (every?
+   (fn [[k matcher]]
+     (let [v (get msg k)]
+       (cond
+         (set? matcher) (matcher v)
+         (fn? matcher) (matcher v)
+         :else
+         (= matcher v))))
+   filter-map))
+
 (rf/reg-event-db
  :message/add
  (fn [db [_ message]]
    (.log js/console (str "Adding message " message))
-   (update db :messages/list conj message)))
+   (if (add-message? (:messages/filter db) message)
+     (update db :messages/list conj message)
+     db)))
 
 (rf/reg-sub
  :form/fields
@@ -471,10 +499,14 @@
                [login-button]
                [register-button]]])]])])))
 
-(defn author []
-  [:div
-   [:p "This page hasn't been implemented yet!"]
-   [:a {:href "/"} "Return home"]])
+(defn author [{{{:keys [user]} :path} :parameters}]
+  (rf/dispatch [:messages/load-by-author user])
+  (let [messages (rf/subscribe [:messages/list])]
+    (fn []
+      [:div.content>div.columns.is-centered>div.column.is-two-thirds
+       [:div.columns>div.column
+        [:h3 "Messages by " user]
+        [message-list messages]]])))
 
 ;; router
 ;; ------------------------
@@ -560,11 +592,14 @@
               [register-button]])]]]]])))
 
 (defn page [{{:keys [view name]}  :data
-             path                 :path}]
-  (.log js/console "Reitit router rendering: " name)
+             path                 :path
+             :as                  match}]
+  (.log js/console
+        "Reitit router rendering: " name "\n"
+        "with match " match "\n")
   [:section.section>div.container
    (if view
-     [view]
+     [view match]
      [:div "No views specified for route: " name " (" path ")"])])
 
 (defn app []
@@ -583,5 +618,5 @@
 (defn init! []
   (.log js/console "Initializing App...")
   (mount/start)
-  (rf/dispatch [:app/initialize])
+  (rf/dispatch-sync [:app/initialize])
   (mount-components))

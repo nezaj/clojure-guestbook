@@ -184,7 +184,6 @@
        :handler
        (fn [{{{:keys [author]} :path} :parameters}]
          (response/ok (msg/messages-by-author author)))}}]]
-
    ["/message"
     {:auth/roles (auth/roles :message/create!)
      :post
