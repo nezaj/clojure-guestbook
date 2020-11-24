@@ -8,6 +8,7 @@
             [reitit.coercion.spec :as reitit-spec]
             [reitit.frontend :as rtf]
             [reitit.frontend.easy :as rtfe]
+            [reitit.frontend.controllers :as rtfc]
 
             [guestbook.validation :refer [validate-message]]
             [guestbook.websockets :as ws]))
@@ -60,6 +61,7 @@
  (fn [{:keys [db]} _]
    {:db (assoc db
                :messages/loading? true
+               :messages/list nil
                :messages/filter nil)
     :ajax/get {:url "/api/messages"
                :success-path [:messages]
@@ -70,6 +72,7 @@
  (fn [{:keys [db]} [_ author]]
    {:db (assoc db
                :messages/loading? true
+               :messages/list nil
                :messages/filter {:author author})
     :ajax/get {:url (str "/api/messages/by/" author)
                :success-path [:messages]
@@ -111,6 +114,13 @@
        (if author
          [:a {:href (str "/user/" author)} (str "@" author)]
          [:span.is-italic "account not found"]) ">"]])])
+
+(defn message-list-placeholder []
+  [:ul.messages
+   [:li
+    [:p "Loading messages..."]
+    [:div {:style {:width "10em"}}
+     [:progress.progress.is-dark {:max 100} "30%"]]]])
 
 (defn add-message?
   "Validates whether a message matches criteria specified in filter map
@@ -472,12 +482,16 @@
 
 ;; views
 ;; ------------------------
+(def home-controllers
+  [{:start (fn [_]
+             (rf/dispatch [:messages/load]))}])
+
 (defn home []
   (let [messages (rf/subscribe [:messages/list])]
     (fn []
       [:div.content>div.columns.is-centered>div.column.is-two-thirds
        (if @(rf/subscribe [:messages/loading?])
-         [:h3 "Loading Messages..."]
+         [message-list-placeholder]
          [:div
           [:div.columns>div.column
            [:h3 "Messages"]
@@ -499,24 +513,32 @@
                [login-button]
                [register-button]]])]])])))
 
+(def author-controllers
+  [{:parameters {:path [:user]}
+    :start (fn [{{:keys [user]} :path}]
+             (rf/dispatch [:messages/load-by-author user]))}])
+
 (defn author [{{{:keys [user]} :path} :parameters}]
-  (rf/dispatch [:messages/load-by-author user])
   (let [messages (rf/subscribe [:messages/list])]
     (fn []
       [:div.content>div.columns.is-centered>div.column.is-two-thirds
        [:div.columns>div.column
         [:h3 "Messages by " user]
-        [message-list messages]]])))
+        (if @(rf/subscribe [:messages/loading?])
+          [message-list-placeholder]
+          [message-list messages])]])))
 
 ;; router
 ;; ------------------------
-(def routes
+(def app-routes
   ["/"
    [""
     {:name ::home
+     :controllers home-controllers
      :view home}]
    ["user/:user"
     {:name ::author
+     :controllers author-controllers
      :view author}]])
 
 (rf/reg-event-db
@@ -531,7 +553,7 @@
 
 (def router
   (rtf/router
-   routes
+   app-routes
    {:data {:coercion reitit-spec/coercion}}))
 
 (defn init-routes! []
@@ -539,7 +561,14 @@
    router
    (fn [new-match]
      (when new-match
-       (rf/dispatch [:router/navigated new-match])))
+       (let [{:keys [controllers]}
+             @(rf/subscribe [:router/current-route])
+
+             new-match-with-controllers
+             (assoc new-match
+                    :controllers
+                    (rtfc/apply-controllers controllers new-match))]
+         (rf/dispatch [:router/navigated new-match-with-controllers]))))
    {:use-fragment false}))
 
 ;; app
@@ -547,9 +576,8 @@
 (rf/reg-event-fx
  :app/initialize
  (fn [_ _]
-   {:db {:messages/loading? true
-         :session/loading? true}
-    :dispatch-n [[:session/load] [:messages/load]]}))
+   {:db {:session/loading? true}
+    :dispatch [:session/load]}))
 
 (defn navbar []
   (let [burger-active (r/atom false)]
@@ -573,7 +601,12 @@
          [:div.navbar-start
           [:a.navbar-item
            {:href "/"}
-           "Home"]]
+           "Home"]
+          (when (= @(rf/subscribe [:auth/user-state]) :authenticated)
+            [:a.navbar-item
+             {:href (rtfe/href :guestbook.core/author
+                               {:user (:login @(rf/subscribe [:auth/user]))})}
+             "My Posts"])]
          [:div.navbar-end
           [:div.navbar-item
            (case @(rf/subscribe [:auth/user-state])

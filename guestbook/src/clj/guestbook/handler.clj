@@ -8,7 +8,8 @@
    [guestbook.env :refer [defaults]]
    [guestbook.layout :refer [error-page]]
    [guestbook.middleware :as middleware]
-   [guestbook.routes :refer [app-routes]]
+
+   [guestbook.routes.home :refer [home-routes]]
    [guestbook.routes.services :refer [service-routes]]
    [guestbook.routes.websockets :refer [websocket-routes]]))
 
@@ -20,7 +21,7 @@
   :start
   (ring/ring-handler
    (ring/router
-    [(app-routes)
+    [(home-routes)
      (service-routes)
      (websocket-routes)])
    (ring/routes
