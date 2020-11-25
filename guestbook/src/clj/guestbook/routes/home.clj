@@ -12,4 +12,6 @@
   [""
    {:middleware [middleware/wrap-csrf
                  middleware/wrap-formats]}
-   ["*" {:get home-page}]])
+   ["/" {:get home-page}]
+   ;; (TODO) Figure out better way to share routes across front/back-end
+   ["/user/*" {:get home-page}]])
