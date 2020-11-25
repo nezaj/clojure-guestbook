@@ -2,6 +2,8 @@
   (:require
    [clojure.tools.logging :as log]
    [clojure.java.jdbc :as jdbc]
+   [cheshire.core :refer [generate-string parse-string]]
+   [next.jdbc :as next-jdbc]
    [next.jdbc.sql :as sql]
    [next.jdbc.result-set :as rs]
    [conman.core :as conman]
@@ -9,7 +11,11 @@
    [java-time :refer [java-date]]
    [mount.core :refer [defstate]]
 
-   [guestbook.config :refer [env]]))
+   [guestbook.config :refer [env]])
+  (:import org.postgresql.util.PGobject
+           java.sql.Array
+           clojure.lang.IPersistentMap
+           clojure.lang.IPersistentVector))
 
 (defstate ^:dynamic *db*
   :start (conman/connect! {:jdbc-url (env :database-url)})
@@ -24,8 +30,22 @@
     (.toLocalDate v))
   java.sql.Time
   (result-set-read-column [v _2 _3]
-    (.toLocalTime v)))
-;
+    (.toLocalTime v))
+  Array
+  (result-set-read-column [v _ _] (vec (.getArray v)))
+  PGobject
+  (result-set-read-column [pgobj _metadata _index]
+    (let [type (.getType pgobj)
+          value (.getValue pgobj)]
+      (case type
+        "json" (parse-string value true)
+        "jsonb" (parse-string value true)
+        value))))
+
+(defn to-pg-json [value]
+  (doto (PGobject.)
+    (.setType "jsonb")
+    (.setValue (generate-string value))))
 
 (extend-protocol jdbc/ISQLValue
   java.util.Date
@@ -42,45 +62,77 @@
     (jt/sql-timestamp v))
   java.time.ZonedDateTime
   (sql-value [v]
-    (jt/sql-timestamp v)))
+    (jt/sql-timestamp v))
+  IPersistentMap
+  (sql-value [v]
+    (to-pg-json v))
+  IPersistentVector
+  (sql-value [v]
+    (to-pg-json v)))
 
 ; queries
 ; -------------
-(defn db-query [conn sql]
-  (log/info "Running query " sql)
-  (sql/query conn sql {:builder-fn rs/as-unqualified-maps}))
+(defn db-select [conn query]
+  (log/info "Running select: " query)
+  (sql/query conn query {:builder-fn rs/as-unqualified-maps}))
 
-(defn db-insert! [conn table-key kvs]
-  (log/info "Inserting into " table-key kvs)
-  (sql/insert! conn table-key kvs {:builder-fn rs/as-unqualified-maps}))
+(def db-select-one (comp first db-select))
+
+(defn db-insert! [conn query]
+  (log/info "Running insert: " query)
+  (next-jdbc/execute-one! conn query {:builder-fn rs/as-unqualified-maps
+                                      :return-keys true}))
+
+(defn db-update! [conn query]
+  (log/info "Running update: " query)
+  (next-jdbc/execute-one! conn query {:builder-fn rs/as-unqualified-maps
+                                      :return-keys true}))
 
 (defn get-messages
+  "Grabs all posts"
   ([] (get-messages *db*))
-  ([conn] (db-query conn ["SELECT * FROM posts"])))
+  ([conn] (db-select conn ["SELECT * FROM posts"])))
 
 (defn get-user-for-auth
+  "Get all user info, intended for auth"
   ([params] (get-user-for-auth *db* params))
   ([conn {:keys [login]}]
-   (first (db-query conn ["SELECT * FROM users WHERE login = ?" login]))))
+   (db-select-one conn ["SELECT login, password, created_at FROM users WHERE login = ?"
+                        login])))
 
 (defn get-messages-by-author
+  "Grabs all posts for an author"
   ([params] (get-messages-by-author *db* params))
   ([conn {:keys [author]}]
-   (db-query conn ["SELECT * FROM posts where author = ?" author])))
+   (db-select conn ["SELECT * FROM posts where author = ?" author])))
+
+(defn get-user
+  "Get public info for a user"
+  ([params] (get-user *db* params))
+  ([conn {:keys [login]}]
+   (db-select-one conn
+                  ["SELECT login, created_at, profile FROM users WHERE login =?"
+                   login])))
 
 (defn create-user!
   ([params] (create-user! *db* params))
-  ([conn params]
+  ([conn {:keys [login password]}]
    (db-insert! conn
-               :users
-               (select-keys params [:login :password]))))
+               ["INSERT INTO users (login,password) VALUES (?,?)"
+                login password])))
 
 (defn save-message!
   ([params] (save-message! *db* params))
-  ([conn params]
+  ([conn {:keys [name message author]}]
    (db-insert! conn
-               :posts
-               (select-keys params [:name :message :author]))))
+               ["INSERT INTO posts (name,message,author) VALUES (?,?,?)"
+                name message author])))
+
+(defn set-profile-for-user!
+  ([params] (set-profile-for-user! *db* params))
+  ([conn {:keys [profile login]}]
+   (db-update! conn ["UPDATE users SET profile = ?::jsonb WHERE login = ?"
+                     (generate-string profile) login])))
 
 ;; one-off migration of data from h2 to postgres
 ;; Note: using jdbc here as opposed to next.jdbc so format of datasource is different
