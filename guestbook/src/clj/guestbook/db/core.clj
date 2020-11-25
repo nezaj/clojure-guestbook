@@ -8,7 +8,6 @@
    [next.jdbc.result-set :as rs]
    [conman.core :as conman]
    [java-time.pre-java8 :as jt]
-   [java-time :refer [java-date]]
    [mount.core :refer [defstate]]
 
    [guestbook.config :refer [env]])
@@ -21,31 +20,37 @@
   :start (conman/connect! {:jdbc-url (env :database-url)})
   :stop (conman/disconnect! *db*))
 
-(extend-protocol jdbc/IResultSetReadColumn
-  java.sql.Timestamp
-  (result-set-read-column [v _2 _3]
-    (java-date (.atZone (.toLocalDateTime v) (java.time.ZoneId/systemDefault))))
-  java.sql.Date
-  (result-set-read-column [v _2 _3]
-    (.toLocalDate v))
-  java.sql.Time
-  (result-set-read-column [v _2 _3]
-    (.toLocalTime v))
-  Array
-  (result-set-read-column [v _ _] (vec (.getArray v)))
-  PGobject
-  (result-set-read-column [pgobj _metadata _index]
-    (let [type (.getType pgobj)
-          value (.getValue pgobj)]
-      (case type
-        "json" (parse-string value true)
-        "jsonb" (parse-string value true)
-        value))))
+(def ->json generate-string)
+(def <-json #(parse-string % true))
 
-(defn to-pg-json [value]
-  (doto (PGobject.)
-    (.setType "jsonb")
-    (.setValue (generate-string value))))
+(defn ->pgobject
+  "Transforms Clojure data to a PGobject that contains the data as
+  JSON. PGObject type defaults to `jsonb` but can be changed via
+  metadata key `:pgtype`"
+  [x]
+  (let [pgtype (or (:pgtype (meta x) "jsonb"))]
+    (doto (PGobject.)
+      (.setType pgtype)
+      (.setValue (->json x)))))
+
+(defn <-pgobject
+  "Transform PGobject containing `json` or `jsonb` value to Clojure data"
+  [^PGobject v]
+  (let [type (.getType v)
+        value (.getValue v)]
+    (if (#{"jsonb" "json"} type)
+      (when value
+        (with-meta (<-json value) {:pgtype type}))
+      value)))
+
+(extend-protocol rs/ReadableColumn
+  Array
+  (read-column-by-label [^Array v _] (vec (.getArray v)))
+  (read-column-by-index [^Array v _2 _3] (vec (.getArray v)))
+
+  PGobject
+  (read-column-by-label [^PGobject v _] (<-pgobject v))
+  (read-column-by-index [^PGobject v _2 _3] (<-pgobject v)))
 
 (extend-protocol jdbc/ISQLValue
   java.util.Date
@@ -65,10 +70,10 @@
     (jt/sql-timestamp v))
   IPersistentMap
   (sql-value [v]
-    (to-pg-json v))
+    (->pgobject v))
   IPersistentVector
   (sql-value [v]
-    (to-pg-json v)))
+    (->pgobject v)))
 
 ; queries
 ; -------------
@@ -97,7 +102,7 @@
   "Get all user info, intended for auth"
   ([params] (get-user-for-auth *db* params))
   ([conn {:keys [login]}]
-   (db-select-one conn ["SELECT login, password, created_at FROM users WHERE login = ?"
+   (db-select-one conn ["SELECT * FROM users WHERE login = ?"
                         login])))
 
 (defn get-messages-by-author
@@ -111,7 +116,7 @@
   ([params] (get-user *db* params))
   ([conn {:keys [login]}]
    (db-select-one conn
-                  ["SELECT login, created_at, profile FROM users WHERE login =?"
+                  ["SELECT login, created_at, profile FROM users WHERE login = ?"
                    login])))
 
 (defn create-user!
@@ -132,7 +137,7 @@
   ([params] (set-profile-for-user! *db* params))
   ([conn {:keys [profile login]}]
    (db-update! conn ["UPDATE users SET profile = ?::jsonb WHERE login = ?"
-                     (generate-string profile) login])))
+                     (->json profile) login])))
 
 ;; one-off migration of data from h2 to postgres
 ;; Note: using jdbc here as opposed to next.jdbc so format of datasource is different

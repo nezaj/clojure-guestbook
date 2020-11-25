@@ -92,6 +92,7 @@
              {:body
               {:identity
                {:login string?
+                :profile map?
                 :created_at inst?}}}
              401
              {:body
