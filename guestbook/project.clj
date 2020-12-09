@@ -60,6 +60,7 @@
      :output-dir "target/cljsbuild/public/js"
      :asset-path "/js"
      :modules {:app {:entries [guestbook.app]}}
+     :dev {:closure-defines {"re_frame.trace.trace_enabled_QMARK_" true}}
      :devtools {:preloads [day8.re-frame-10x.preload]
                 :watch-dir "resources/public"}}
     :test
