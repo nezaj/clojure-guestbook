@@ -1,0 +1,8 @@
+;; Sample config for running the app
+;; Copy this over to dev-config.edn if you haven't already created
+;; a dev configuration
+{:dev true
+ :port 3020
+ :nrepl-port 7020
+ :database-url "postgresql://localhost:5432/guestbook?user=guestbook&password=password"}
+

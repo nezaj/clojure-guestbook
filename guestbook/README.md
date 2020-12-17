@@ -2,15 +2,64 @@
 
 Guestbook project from Web Development With Clojure
 
+### Quick-start
+
+**Note:** Assumes `postgres` is already installed and running on port `5432` and that `psql` is available on the command line
+
+```
+# Create postgres database from terminal
+psql
+CREATE user guestbook WITH PASSWORD 'guestbook';
+CREATE DATABASE guestbook OWNER guestbook;
+\q
+
+# Set up dev config
+cp sample-config.edn dev-config.edn
+
+# Start up shadow server
+make dev
+
+# In another terminal instance connect to repl
+make repl
+
+# In repl start up app
+(guestbook.core/-main)
+```
+
+The app should now be running at `localhost:3020`
+
 ### REPLs
 
-**Clojure**: `make clj-repl` will fire-up an nrepl where you can evaluate code and hook-up your editor for navigation. If using vim and vim-fireplace, you should be automagically connected to the clojure repl once you open a `.clj` file
+To hop into cljs repl from clj repl
 
-**ClojureScript**: This is a bit more involved and requires the following:
+```
+(in-ns 'shadow.user)
+(shadow/repl :app)
+```
 
--   `make dev-client` will spin-up a cljs-build tool to build/watch your cljs files
--   `open localhost:3000` will open up a web-socket connection between your browser and your cljs server
--   `make cljs-repl` to start a cljs nrepl which will use the browser to evaluate cljs code
--   Open vim and enter the command `:CljEval (shadow/repl :app)` to connect vim to your cljs repl.
+To go back to clj repl from cljs repl
 
-###### Note: Currently I can only get `vim-fireplace` to reliabily connect to one repl at a time. If I'm first connected to a clojure repl I will want to quit that the repl process and start a new cljs repl via `make cljs-repl`. Similarly if I'm connected to a cljs-repl and want to switch to a clj-repl I will want to exit and run `make clj-repl`.
+```
+:cljs/quit
+```
+
+You can also be connected to both clj and cljs repl at the same time by via two terminal instances.
+
+```
+# Connect to clj repl in one terminal instance
+make repl
+
+# Connect to cljs repl in another terminal instance
+make repl
+(shadow/repl :app)
+```
+
+### Vim Quasi-REPL (via vim-fireplace)
+
+Vim should automagically connect to your running clj repl. To connect vim to a cljs repl: open up your app on localhost with shadow running, execute in vim
+
+```
+:Piggieback :app
+```
+
+You should now be able to use the quasi-repl in both clj and cljs files
