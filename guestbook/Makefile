@@ -17,6 +17,10 @@ cljs-server:
 	@echo "Starting shadow-cljs server..."
 	lein shadow watch app
 
+db:
+	@echo "Connecting to dev db..."
+	psql -U guestbook -d guestbook
+
 watch-test:
 	@echo "Watching tests..."
 	lein test-refresh
