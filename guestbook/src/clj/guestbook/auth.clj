@@ -29,7 +29,9 @@
   {:message/create! #{:authenticated}
    :auth/login #{:any}
    :auth/logout #{:any}
+   :author/get #{:any}
    :account/register #{:any}
+   :account/update-profile! #{:authenticated}
    :session/get #{:any}
    :messages/list #{:any}
    :swagger/swagger #{:any}})

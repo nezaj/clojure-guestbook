@@ -14,6 +14,7 @@
    [ring.util.http-response :as response]
 
    [guestbook.auth :as auth]
+   [guestbook.db.core :as db]
    [guestbook.messages :as msg]
    [guestbook.middleware.formats :as formats]))
 
@@ -185,6 +186,39 @@
        :handler
        (fn [{{{:keys [author]} :path} :parameters}]
          (response/ok (msg/messages-by-author author)))}}]]
+   ["/author/:login"
+    {:auth/roles (auth/roles :author/get)
+     :get {:parameters
+           {:path {:login string?}}
+
+           :responses {200 {:body map?}
+                       500 {:errors map?}}
+           :handler
+           (fn [{{{:keys [login]} :path} :parameters}]
+             (response/ok (db/get-user {:login login})))}}]
+   ["/my-account"
+    ["/update-profile"
+     {:auth/roles (auth/roles :account/update-profile!)
+      :post {:parameters
+             {:body {:profile map?}}
+
+             :responses
+             {200 {:body map?}
+              500 {:errors map?}}
+
+             :handler
+             (fn [{{{:keys [profile]} :body} :parameters
+                   {{:keys [login]} :identity} :session}]
+               (try
+                 (let [user (db/update-profile-for-user! {:login login
+                                                          :profile profile})]
+                   (update (response/ok {:success true})
+                           :session
+                           assoc :identity user))
+                 (catch Exception e
+                   (log/error e)
+                   (response/internal-server-error
+                    {:errors {:server-error ["Failed to update profile!"]}}))))}}]]
    ["/message"
     {:auth/roles (auth/roles :message/create!)
      :post

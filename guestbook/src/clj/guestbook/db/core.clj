@@ -73,7 +73,7 @@
     (.setObject s i (->pgobject m))))
 
 
-; queries
+; db helpers
 ; -------------
 
 
@@ -87,17 +87,13 @@
   (log/info "Running query: " query)
   (next-jdbc/execute-one! conn query {:builder-fn rs/as-unqualified-maps
                                       :return-keys true}))
+
+; messages
+; -------------
 (defn get-messages
   "Grabs all posts"
   ([] (get-messages *db*))
   ([conn] (db-select conn ["SELECT * FROM posts"])))
-
-(defn get-user-for-auth
-  "Get all user info, intended for auth"
-  ([params] (get-user-for-auth *db* params))
-  ([conn {:keys [login]}]
-   (db-select-one conn ["SELECT * FROM users WHERE login = ?"
-                        login])))
 
 (defn get-messages-by-author
   "Grabs all posts for an author"
@@ -105,30 +101,42 @@
   ([conn {:keys [author]}]
    (db-select conn ["SELECT * FROM posts where author = ?" author])))
 
-(defn get-user
-  "Get public info for a user"
-  ([params] (get-user *db* params))
-  ([conn {:keys [login]}]
-   (db-select-one conn
-                  ["SELECT login, created_at, profile FROM users WHERE login = ?"
-                   login])))
-
-(defn create-user!
-  ([params] (create-user! *db* params))
-  ([conn {:keys [login password]}]
-   (db-execute-one! conn
-                    ["INSERT INTO users (login,password) VALUES (?,?)"
-                     login password])))
-
 (defn save-message!
   ([params] (save-message! *db* params))
   ([conn {:keys [name message author]}]
    (db-execute-one! conn
                     ["INSERT INTO posts (name,message,author) VALUES (?,?,?)"
                      name message author])))
+; user
+; -------------
+(defn create-user!
+  ([params] (create-user! *db* params))
+  ([conn {:keys [login password]}]
+   (db-execute-one! conn
+                    ["INSERT INTO users (login,password) VALUES (?,?)"
+                     login password])))
+(defn get-user
+  "Get public info for a user"
+  ([params] (get-user *db* params))
+  ([conn {:keys [login]}]
+   (db-select-one conn
+                  ["SELECT login, created_at, profile FROM users
+                   WHERE login = ?"
+                   login])))
 
-(defn set-profile-for-user!
-  ([params] (set-profile-for-user! *db* params))
+(defn get-user-for-auth
+  "Get all user info, intended for auth"
+  ([params] (get-user-for-auth *db* params))
+  ([conn {:keys [login]}]
+   (db-select-one conn ["SELECT * FROM users
+                        WHERE login = ?"
+                        login])))
+
+; profile
+; -------------
+(defn update-profile-for-user!
+  ([params] (update-profile-for-user! *db* params))
   ([conn {:keys [profile login]}]
-   (db-execute-one! conn ["UPDATE users SET profile = ?::jsonb WHERE login = ?"
+   (db-execute-one! conn ["UPDATE users SET profile = ?::jsonb
+                          WHERE login = ?"
                           profile login])))
