@@ -32,6 +32,21 @@
                           #(rf/dispatch
                             (conj error-event %)))))))
 
+(rf/reg-fx
+ :ajax/post
+ (fn [{:keys [url success-event error-event success-path params]}]
+   (POST url
+     (cond-> {:headers {"Accept" "application/transit+json"}}
+       params       (assoc :params params)
+       success-event (assoc :handler
+                            #(rf/dispatch
+                              (conj success-event
+                                    (if success-path
+                                      (get-in % success-path)
+                                      %))))
+       error-event (assoc :error-handler
+                          #(rf/dispatch
+                            (conj error-event %)))))))
 ;; sessions
 ;; ------------------------
 (rf/reg-event-fx
@@ -53,6 +68,61 @@
  :session/loading?
  (fn [db _]
    (:session/loading? db)))
+
+;; profile
+;; -------------------
+(rf/reg-sub
+ :profile/changes
+ (fn [db _]
+   (get db :profile/changes)))
+
+(rf/reg-sub
+ :profile/changed?
+ :<- [:profile/changes]
+ (fn [changes _]
+   (not (empty? changes))))
+
+(rf/reg-sub
+ :profile/field-changed?
+ :<- [:profile/changes]
+ (fn [changes [_ k]]
+   (contains? changes k)))
+
+(rf/reg-sub
+ :profile/field
+ :<- [:profile/changes]
+ :<- [:auth/user]
+ (fn [[changes {:keys [profile]}] [_ k default]]
+   (or (get changes k) (get profile k) default)))
+
+(rf/reg-sub
+ :profile/profile
+ :<- [:profile/changes]
+ :<- [:auth/user]
+ (fn [[changes {:keys [profile]}] _]
+   (merge profile changes)))
+
+(rf/reg-event-db
+ :profile/save-change
+ (fn [db [_ k v]]
+   (update db :profile/changes
+           (if (nil? v)
+             #(dissoc % k)
+             #(assoc % k v)))))
+
+(rf/reg-event-fx
+ :profile/update-profile
+ (fn [_ [_ profile]]
+   {:ajax/post {:url "/api/my-account/update-profile"
+                :params {:profile profile}
+                :success-event [:profile/after-update profile]}}))
+
+(rf/reg-event-db
+ :profile/after-update
+ (fn [db [_ profile]]
+   (-> db
+       (assoc-in [:auth/user :profile] profile)
+       (dissoc :profile/changes))))
 
 ;; messages
 ;; ------------------------
@@ -420,7 +490,8 @@
    "Log Out"])
 
 (defn nameplate [{:keys [login]}]
-  [:button.button.is-primary
+  [:a.button.is-primary
+   {:href "/my-account/edit-profile"}
    login])
 
 (defn do-register [fields error]
@@ -528,6 +599,57 @@
           [message-list-placeholder]
           [message-list messages])]])))
 
+
+;; profile componenets
+;; ------------------------
+
+
+(defn display-name []
+  (r/with-let [k :display-name
+               value (rf/subscribe [:profile/field k ""])]
+    [:div.field
+     [:label.label {:for k} "Display Name"
+      (when @(rf/subscribe [:profile/field-changed? k])
+        " (Changed)")]
+     [:div.field.has-addons
+      [:div.control.is-expanded
+       [text-input {:value value
+                    :on-save #(rf/dispatch [:profile/save-change k %])}]]]
+     [:div.control>button.button.is-danger
+      {:disabled (not @(rf/subscribe [:profile/field-changed? k]))
+       :on-click #(rf/dispatch [:profile/save-change k nil])} "Reset"]]))
+
+(defn bio []
+  (r/with-let [k :bio
+               value (rf/subscribe [:profile/field k ""])]
+    [:div.field
+     [:label.label {:for k} "Bio"
+      (when @(rf/subscribe [:profile/field-changed? k])
+        " (Changed)")]
+     [:div.control {:style {:margin-bottom "0.5em"}}
+      [textarea-input {:value value
+                       :on-save #(rf/dispatch [:profile/save-change k %])}]]
+     [:div.control>button.button.is-danger
+      {:disabled (not @(rf/subscribe [:profile/field-changed? k]))
+       :on-click #(rf/dispatch [:profile/save-change k nil])} "Reset"]]))
+
+(defn edit-profile []
+  (if-let [{:keys [login created_at]} @(rf/subscribe [:auth/user])]
+    [:div.content
+     [:h1 "My Account"
+      (str " <@" login ">")]
+     [:p (str "Joined: " (.toString created_at))]
+     [display-name]
+     [bio]
+     [:button.button.is-primary
+      {:on-click
+       #(rf/dispatch [:profile/update-profile @(rf/subscribe [:profile/profile])])
+       :disabled (not @(rf/subscribe [:profile/changed?]))}
+      "Update Profile"]]
+    [:div.content
+     [:div {:style {:width "100%"}}
+      [:progress.progress.is-dark {:max 100} "30%"]]]))
+
 ;; router
 ;; ------------------------
 (def app-routes
@@ -539,7 +661,11 @@
    ["user/:user"
     {:name ::author
      :controllers author-controllers
-     :view author}]])
+     :view author}]
+   ["my-account/edit-profile"
+    {:name ::edit-profile
+     :controllers nil
+     :view edit-profile}]])
 
 (rf/reg-event-db
  :router/navigated
